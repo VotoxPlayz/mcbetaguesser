@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minecraft Beta Song Guesser (MBSG)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    body {
+      margin: 0;
+      font-family: 'Press Start 2P', cursive;
+      background: url('https://f4.bcbits.com/img/a1112985681_10.jpg') repeat;
+      background-size: cover;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+    }
+
+    h1, h2, h3 { margin: 10px; }
+
+    #game-container, #final-score-box, #menu-screen {
+      padding: 20px;
+      max-width: 600px;
+      width: 90%;
+      background-color: rgba(0, 0, 0, 0.8);
+      border: 4px solid #333;
+      border-radius: 10px;
+      display: none;
+    }
+
+    #menu-screen { display: block; }
+
+    input[type="text"] {
+      width: 80%;
+      padding: 15px;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 12px;
+      margin-top: 20px;
+      border: 2px solid #555;
+      background: #000;
+      color: #fff;
+    }
+
+    button {
+      padding: 12px 20px;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 10px;
+      background-color: #555;
+      color: white;
+      border: 2px solid #fff;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+
+    button:hover { background-color: #228B22; }
+    #skip-btn { background-color: #8b2222; }
+    #skip-btn:hover { background-color: #ff0000; }
+
+    iframe {
+  position: absolute;
+  top: -9999px; /* Moves it way off the screen */
+  left: -9999px;
+  width: 300px;
+  height: 200px;
+}
+
+    #next-btn { display: none; }
+    #result { font-size: 12px; margin: 20px; line-height: 1.5; }
+
+    #grade-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 4px solid gold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      margin: 20px auto;
+      background: rgba(255, 215, 0, 0.2);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="menu-screen">
+    <h1>MBSG</h1>
+    <p style="font-size: 10px; line-height: 1.6;">Guess the Minecraft track!<br>Correct = Point<br>Incorrect = 3s Penalty<br>Skip = No point</p>
+    <button onclick="startGame()">START GAME</button>
+  </div>
+
+  <h2 id="score" style="display:none;">Score: 0 / 0</h2>
+
+  <div id="game-container">
+    <iframe id="song" src="" frameborder="0" allow="autoplay"></iframe>
+    <input type="text" id="guess" placeholder="Song name..." autocomplete="off" />
+    <br />
+    <button id="submit-btn" onclick="submitGuess()">SUBMIT</button>
+    <button id="skip-btn" onclick="skipSong()">SKIP</button>
+    <button id="next-btn" onclick="nextSong()">NEXT</button>
+    <div id="result"></div>
+  </div>
+
+  <div id="final-score-box">
+    <h2>RESULTS</h2>
+    <div id="grade-circle"></div>
+    <div id="accuracy"></div>
+    <div id="time"></div>
+    <div id="points"></div>
+    <br>
+    <button onclick="location.reload()">REPLAY</button>
+  </div>
+
+  <script>
+    const songs = [
+      { name: "Ki", url: "https://www.youtube.com/embed/0y53iF8BTSU" },
+      { name: "Alpha", url: "https://www.youtube.com/embed/xLfm2nnCOpc" },
+      { name: "Dead Voxel", url: "https://www.youtube.com/embed/wGQDJNksrAM" },
+      { name: "Blind Spots", url: "https://www.youtube.com/embed/77Fv8gtZyuA" },
+      { name: "Flake", url: "https://www.youtube.com/embed/yuySSmW5cfo" },
+      { name: "Moog City 2", url: "https://www.youtube.com/embed/C8df2pbOX6g" },
+      { name: "Concrete Halls", url: "https://www.youtube.com/embed/DwXtbA64lHE" },
+      { name: "Biome Fest", url: "https://www.youtube.com/embed/8sglGXAfHLc" },
+      { name: "Mutation", url: "https://www.youtube.com/embed/5ChvaSe6aK0" },
+      { name: "Haunt Muskie", url: "https://www.youtube.com/embed/ao8U6D_F3dE" },
+      { name: "Warmth", url: "https://www.youtube.com/embed/tMjk9wgrPAc" },
+      { name: "Floating Trees", url: "https://www.youtube.com/embed/j1Z_Ihkluek" },
+      { name: "Aria Math", url: "https://www.youtube.com/embed/atgjKEgSqSU" },
+      { name: "Kyoto", url: "https://www.youtube.com/embed/FVNSvz-UyuA" },
+      { name: "Ballad of the Cats", url: "https://www.youtube.com/embed/8VY2RUyY0t4" },
+      { name: "Taswell", url: "https://www.youtube.com/embed/Mj6jF7I2s10" },
+      { name: "Beginning 2", url: "https://www.youtube.com/embed/2vRBjHY7ReE" },
+      { name: "Dreiton", url: "https://www.youtube.com/embed/rbIGUF9QmXg" },
+      { name: "The End", url: "https://www.youtube.com/embed/-6mBUPdTmeI" },
+      { name: "Chirp", url: "https://www.youtube.com/embed/cCibTj6drhM" },
+      { name: "Wait", url: "https://www.youtube.com/embed/sBl9qcaQos4" },
+      { name: "Mellohi", url: "https://www.youtube.com/embed/TrYlTm06o-8" },
+      { name: "Stal", url: "https://www.youtube.com/embed/0E5l2GHBxB8" },
+      { name: "Strad", url: "https://www.youtube.com/embed/d6tV0cr9zYI" },
+      { name: "Eleven", url: "https://www.youtube.com/embed/eh4rVC1Mv0E" },
+      { name: "Ward", url: "https://www.youtube.com/embed/zqw8FylO_Y8" },
+      { name: "Mall", url: "https://www.youtube.com/embed/xmBfruermmo" },
+      { name: "Blocks", url: "https://www.youtube.com/embed/JQw8MEqhMRA" },
+      { name: "Far", url: "https://www.youtube.com/embed/UqKcX87h3c0" },
+      { name: "Intro", url: "https://www.youtube.com/embed/tC_lJyeGxoA" }
+    ];
+
+    let shuffled = [];
+    let current = -1;
+    let correct = 0;
+    let totalPlayed = 0;
+    let startTime = 0;
+    let locked = false;
+
+    function updateScore() {
+      document.getElementById("score").innerText = `Score: ${correct} / ${totalPlayed}`;
+    }
+
+    function loadSong() {
+  current++;
+  if (current >= shuffled.length) {
+    finishGame();
+    return;
+  }
+  
+  const iframe = document.getElementById("song");
+  
+  // We use autoplay=1, mute=0, and a 'playlist' hack which sometimes helps bypass blocks
+  const videoId = shuffled[current].url.split('/').pop();
+  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&enablejsapi=1&origin=${window.location.origin}`;
+  
+  document.getElementById("guess").value = "";
+  document.getElementById("result").innerText = "";
+  document.getElementById("next-btn").style.display = "none";
+  document.getElementById("skip-btn").style.display = "inline-block";
+  document.getElementById("submit-btn").style.display = "inline-block";
+  document.getElementById("guess").disabled = false;
+  locked = false;
+}
+
+    function submitGuess() {
+      if (locked) return;
+
+      const userGuess = document.getElementById("guess").value.trim().toLowerCase();
+      const actual = shuffled[current].name.toLowerCase();
+
+      if (userGuess === actual) {
+        correct++;
+        totalPlayed++;
+        updateScore();
+        loadSong();
+      } else {
+        totalPlayed++;
+        updateScore();
+        handleIncorrect();
+      }
+    }
+
+    function skipSong() {
+      if (locked) return;
+      totalPlayed++;
+      updateScore();
+      handleIncorrect("Skipped!");
+    }
+
+    function handleIncorrect(msg) {
+        locked = true;
+        const message = msg || `Incorrect! That was: ${shuffled[current].name}`;
+        document.getElementById("result").innerText = message;
+        document.getElementById("guess").disabled = true;
+        document.getElementById("skip-btn").style.display = "none";
+        document.getElementById("submit-btn").style.display = "none";
+        
+        // Show next button after 3 seconds
+        setTimeout(() => {
+          document.getElementById("next-btn").style.display = "inline-block";
+        }, 2000);
+    }
+
+    function nextSong() {
+      loadSong();
+    }
+
+    function getGrade(percent) {
+      if (percent === 100) return "S+";
+      if (percent >= 90) return "A";
+      if (percent >= 75) return "B";
+      if (percent >= 60) return "C";
+      if (percent >= 40) return "D";
+      return "F";
+    }
+
+    function finishGame() {
+      const totalTime = (Date.now() - startTime) / 1000;
+      const percent = totalPlayed > 0 ? (correct / totalPlayed) * 100 : 0;
+      const points = totalTime > 0 ? ((correct / 30) * 10000) / (totalTime / 60) : 0;
+      
+      document.getElementById("game-container").style.display = "none";
+      document.getElementById("score").style.display = "none";
+      document.getElementById("song").src = "";
+      document.getElementById("final-score-box").style.display = "block";
+      
+      document.getElementById("grade-circle").innerText = getGrade(Math.round(percent));
+      document.getElementById("accuracy").innerText = `Accuracy: ${Math.round(percent)}%`;
+      document.getElementById("time").innerText = `Time: ${totalTime.toFixed(1)}s`;
+      document.getElementById("points").innerText = `Points: ${Math.round(points)}`;
+    }
+
+    function startGame() {
+      shuffled = [...songs].sort(() => 0.5 - Math.random());
+      document.getElementById("menu-screen").style.display = "none";
+      document.getElementById("score").style.display = "block";
+      document.getElementById("game-container").style.display = "block";
+      startTime = Date.now();
+      updateScore();
+      loadSong();
+    }
+
+    document.getElementById("guess").addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        submitGuess();
+      }
+    });
+  </script>
+</body>
+</html>
