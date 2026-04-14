@@ -1,271 +1,279 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Minecraft Beta Song Guesser (MBSG)</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Beta AudioGuesser</title>
+    <style>
+        :root {
+            --mc-green: #3e8c2d;
+            --mc-dark: #1a1a1a;
+            --mc-panel: #2a2a2a;
+            --mc-border: #555;
+            --mc-text: #e0e0e0;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: var(--mc-dark);
+            color: var(--mc-text);
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        #game-container {
+            max-width: 500px;
+            width: 100%;
+            background: var(--mc-panel);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            text-align: center;
+        }
+        .setup-screen { display: block; }
+        .game-screen { display: none; }
+        
+        .control-group { margin: 15px 0; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; color: #aaa; }
+        
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            background: #444;
+            border: 2px solid var(--mc-border);
+            color: white;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
 
-    body {
-      margin: 0;
-      font-family: 'Press Start 2P', cursive;
-      background: url('https://f4.bcbits.com/img/a1112985681_10.jpg') repeat;
-      background-size: cover;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      text-align: center;
-    }
+        /* Suggestions List */
+        .autocomplete { position: relative; }
+        .suggestions {
+            position: absolute;
+            width: 100%;
+            background: #333;
+            border: 1px solid var(--mc-border);
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #444; }
+        .suggestion-item:hover { background: var(--mc-green); }
 
-    h1, h2, h3 { margin: 10px; }
+        /* Progress Bar */
+        #timeline { width: 100%; accent-color: var(--mc-green); cursor: pointer; }
+        .time-labels { display: flex; justify-content: space-between; font-family: monospace; font-size: 0.8em; }
 
-    #game-container, #final-score-box, #menu-screen {
-      padding: 20px;
-      max-width: 600px;
-      width: 90%;
-      background-color: rgba(0, 0, 0, 0.8);
-      border: 4px solid #333;
-      border-radius: 10px;
-      display: none;
-    }
-
-    #menu-screen { display: block; }
-
-    input[type="text"] {
-      width: 80%;
-      padding: 15px;
-      font-family: 'Press Start 2P', cursive;
-      font-size: 12px;
-      margin-top: 20px;
-      border: 2px solid #555;
-      background: #000;
-      color: #fff;
-    }
-
-    button {
-      padding: 12px 20px;
-      font-family: 'Press Start 2P', cursive;
-      font-size: 10px;
-      background-color: #555;
-      color: white;
-      border: 2px solid #fff;
-      cursor: pointer;
-      margin: 10px 5px;
-    }
-
-    button:hover { background-color: #228B22; }
-    #skip-btn { background-color: #8b2222; }
-    #skip-btn:hover { background-color: #ff0000; }
-
-    iframe {
-  position: absolute;
-  top: -9999px; /* Moves it way off the screen */
-  left: -9999px;
-  width: 300px;
-  height: 200px;
-}
-
-    #next-btn { display: none; }
-    #result { font-size: 12px; margin: 20px; line-height: 1.5; }
-
-    #grade-circle {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      border: 4px solid gold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 30px;
-      margin: 20px auto;
-      background: rgba(255, 215, 0, 0.2);
-    }
-  </style>
+        button {
+            width: 100%;
+            background: var(--mc-green);
+            color: white;
+            border: none;
+            padding: 15px;
+            font-weight: bold;
+            font-size: 1em;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        button:disabled { background: #555; cursor: not-allowed; }
+        
+        #player { position: absolute; top: -9999px; left: -9999px; } /* Hide YT Player */
+        .round-info { font-weight: bold; color: var(--mc-green); margin-bottom: 10px; }
+    </style>
 </head>
 <body>
 
-  <div id="menu-screen">
-    <h1>MBSG</h1>
-    <p style="font-size: 10px; line-height: 1.6;">Guess the Minecraft track!<br>Correct = Point<br>Incorrect = 3s Penalty<br>Skip = No point</p>
-    <button onclick="startGame()">START GAME</button>
-  </div>
+<div id="game-container">
+    <h1>Minecraft Beta Guesser</h1>
 
-  <h2 id="score" style="display:none;">Score: 0 / 0</h2>
+    <div id="setup-screen" class="setup-screen">
+        <div class="control-group">
+            <label>How many rounds?</label>
+            <select id="max-rounds">
+                <option value="5">5 Rounds</option>
+                <option value="10">10 Rounds</option>
+                <option value="15">15 Rounds</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Snippet Length (Seconds)</label>
+            <select id="interval">
+                <option value="1">1 Second (Hard)</option>
+                <option value="3" selected>3 Seconds (Normal)</option>
+                <option value="5">5 Seconds (Easy)</option>
+            </select>
+        </div>
+        <button onclick="startGame()">Start Game</button>
+    </div>
 
-  <div id="game-container">
-    <iframe id="song" src="" frameborder="0" allow="autoplay"></iframe>
-    <input type="text" id="guess" placeholder="Song name..." autocomplete="off" />
-    <br />
-    <button id="submit-btn" onclick="submitGuess()">SUBMIT</button>
-    <button id="skip-btn" onclick="skipSong()">SKIP</button>
-    <button id="next-btn" onclick="nextSong()">NEXT</button>
-    <div id="result"></div>
-  </div>
+    <div id="game-screen" class="game-screen">
+        <div class="round-info">Round: <span id="round-num">1</span> / <span id="total-rounds-display">5</span></div>
+        <div id="player"></div>
 
-  <div id="final-score-box">
-    <h2>RESULTS</h2>
-    <div id="grade-circle"></div>
-    <div id="accuracy"></div>
-    <div id="time"></div>
-    <div id="points"></div>
-    <br>
-    <button onclick="location.reload()">REPLAY</button>
-  </div>
+        <button id="play-btn" onclick="playSnippet()">Play Snippet</button>
 
-  <script>
+        <div class="control-group">
+            <label>Which Song?</label>
+            <div class="autocomplete">
+                <input type="text" id="song-input" autocomplete="off" oninput="handleSearch(this.value)">
+                <div id="suggestions" class="suggestions"></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Timestamp Guess: <span id="current-guess-time">0:00</span></label>
+            <input type="range" id="timeline" min="0" step="1" value="0">
+            <div class="time-labels">
+                <span>0:00</span>
+                <span id="max-time-display">0:00</span>
+            </div>
+        </div>
+
+        <button id="guess-btn" onclick="submitGuess()" disabled>Submit Guess</button>
+        <div id="feedback" style="margin-top: 15px; font-weight: bold;"></div>
+        <h3 id="score-display">Score: 0</h3>
+    </div>
+</div>
+
+<script>
+    // Song Database
     const songs = [
-      { name: "Ki", url: "https://www.youtube.com/embed/0y53iF8BTSU" },
-      { name: "Alpha", url: "https://www.youtube.com/embed/xLfm2nnCOpc" },
-      { name: "Dead Voxel", url: "https://www.youtube.com/embed/wGQDJNksrAM" },
-      { name: "Blind Spots", url: "https://www.youtube.com/embed/77Fv8gtZyuA" },
-      { name: "Flake", url: "https://www.youtube.com/embed/yuySSmW5cfo" },
-      { name: "Moog City 2", url: "https://www.youtube.com/embed/C8df2pbOX6g" },
-      { name: "Concrete Halls", url: "https://www.youtube.com/embed/DwXtbA64lHE" },
-      { name: "Biome Fest", url: "https://www.youtube.com/embed/8sglGXAfHLc" },
-      { name: "Mutation", url: "https://www.youtube.com/embed/5ChvaSe6aK0" },
-      { name: "Haunt Muskie", url: "https://www.youtube.com/embed/ao8U6D_F3dE" },
-      { name: "Warmth", url: "https://www.youtube.com/embed/tMjk9wgrPAc" },
-      { name: "Floating Trees", url: "https://www.youtube.com/embed/j1Z_Ihkluek" },
-      { name: "Aria Math", url: "https://www.youtube.com/embed/atgjKEgSqSU" },
-      { name: "Kyoto", url: "https://www.youtube.com/embed/FVNSvz-UyuA" },
-      { name: "Ballad of the Cats", url: "https://www.youtube.com/embed/8VY2RUyY0t4" },
-      { name: "Taswell", url: "https://www.youtube.com/embed/Mj6jF7I2s10" },
-      { name: "Beginning 2", url: "https://www.youtube.com/embed/2vRBjHY7ReE" },
-      { name: "Dreiton", url: "https://www.youtube.com/embed/rbIGUF9QmXg" },
-      { name: "The End", url: "https://www.youtube.com/embed/-6mBUPdTmeI" },
-      { name: "Chirp", url: "https://www.youtube.com/embed/cCibTj6drhM" },
-      { name: "Wait", url: "https://www.youtube.com/embed/sBl9qcaQos4" },
-      { name: "Mellohi", url: "https://www.youtube.com/embed/TrYlTm06o-8" },
-      { name: "Stal", url: "https://www.youtube.com/embed/0E5l2GHBxB8" },
-      { name: "Strad", url: "https://www.youtube.com/embed/d6tV0cr9zYI" },
-      { name: "Eleven", url: "https://www.youtube.com/embed/eh4rVC1Mv0E" },
-      { name: "Ward", url: "https://www.youtube.com/embed/zqw8FylO_Y8" },
-      { name: "Mall", url: "https://www.youtube.com/embed/xmBfruermmo" },
-      { name: "Blocks", url: "https://www.youtube.com/embed/JQw8MEqhMRA" },
-      { name: "Far", url: "https://www.youtube.com/embed/UqKcX87h3c0" },
-      { name: "Intro", url: "https://www.youtube.com/embed/tC_lJyeGxoA" }
+        { name: "Ki", id: "0y53iF8BTSU", duration: 92 },
+        { name: "Alpha", id: "xLfm2nnCOpc", duration: 603 },
+        { name: "Dead Voxel", id: "wGQDJNksrAM", duration: 296 },
+        { name: "Blind Spots", id: "77Fv8gtZyuA", duration: 332 },
+        { name: "Flake", id: "yuySSmW5cfo", duration: 170 },
+        { name: "Moog City 2", id: "C8df2pbOX6g", duration: 180 },
+        { name: "Concrete Halls", id: "DwXtbA64lHE", duration: 254 },
+        { name: "Biome Fest", id: "8sglGXAfHLc", duration: 378 },
+        { name: "Mutation", id: "5ChvaSe6aK0", duration: 185 },
+        { name: "Haunt Muskie", id: "ao8U6D_F3dE", duration: 361 },
+        { name: "Warmth", id: "tMjk9wgrPAc", duration: 239 },
+        { name: "Floating Trees", id: "j1Z_Ihkluek", duration: 244 },
+        { name: "Aria Math", id: "atgjKEgSqSU", duration: 310 },
+        { name: "Kyoto", id: "FVNSvz-UyuA", duration: 249 },
+        { name: "Ballad of the Cats", id: "8VY2RUyY0t4", duration: 275 },
+        { name: "Taswell", id: "Mj6jF7I2s10", duration: 515 },
+        { name: "Beginning 2", id: "2vRBjHY7ReE", duration: 176 },
+        { name: "Dreiton", id: "rbIGUF9QmXg", duration: 497 },
+        { name: "The End", id: "-6mBUPdTmeI", duration: 904 },
+        { name: "Chirp", id: "cCibTj6drhM", duration: 126 },
+        { name: "Wait", id: "sBl9qcaQos4", duration: 238 },
+        { name: "Mellohi", id: "TrYlTm06o-8", duration: 118 },
+        { name: "Stal", id: "0E5l2GHBxB8", duration: 152 },
+        { name: "Strad", id: "d6tV0cr9zYI", duration: 188 },
+        { name: "Eleven", id: "eh4rVC1Mv0E", duration: 71 },
+        { name: "Ward", id: "zqw8FylO_Y8", duration: 251 },
+        { name: "Mall", id: "xmBfruermmo", duration: 197 },
+        { name: "Blocks", id: "JQw8MEqhMRA", duration: 343 },
+        { name: "Far", id: "UqKcX87h3c0", duration: 192 },
+        { name: "Intro", id: "tC_lJyeGxoA", duration: 276 }
     ];
 
-    let shuffled = [];
-    let current = -1;
-    let correct = 0;
-    let totalPlayed = 0;
-    let startTime = 0;
-    let locked = false;
-
-    function updateScore() {
-      document.getElementById("score").innerText = `Score: ${correct} / ${totalPlayed}`;
-    }
-
-    function loadSong() {
-  current++;
-  if (current >= shuffled.length) {
-    finishGame();
-    return;
-  }
-  
-  const iframe = document.getElementById("song");
-  
-  // We use autoplay=1, mute=0, and a 'playlist' hack which sometimes helps bypass blocks
-  const videoId = shuffled[current].url.split('/').pop();
-  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&enablejsapi=1&origin=${window.location.origin}`;
-  
-  document.getElementById("guess").value = "";
-  document.getElementById("result").innerText = "";
-  document.getElementById("next-btn").style.display = "none";
-  document.getElementById("skip-btn").style.display = "inline-block";
-  document.getElementById("submit-btn").style.display = "inline-block";
-  document.getElementById("guess").disabled = false;
-  locked = false;
-}
-
-    function submitGuess() {
-      if (locked) return;
-
-      const userGuess = document.getElementById("guess").value.trim().toLowerCase();
-      const actual = shuffled[current].name.toLowerCase();
-
-      if (userGuess === actual) {
-        correct++;
-        totalPlayed++;
-        updateScore();
-        loadSong();
-      } else {
-        totalPlayed++;
-        updateScore();
-        handleIncorrect();
-      }
-    }
-
-    function skipSong() {
-      if (locked) return;
-      totalPlayed++;
-      updateScore();
-      handleIncorrect("Skipped!");
-    }
-
-    function handleIncorrect(msg) {
-        locked = true;
-        const message = msg || `Incorrect! That was: ${shuffled[current].name}`;
-        document.getElementById("result").innerText = message;
-        document.getElementById("guess").disabled = true;
-        document.getElementById("skip-btn").style.display = "none";
-        document.getElementById("submit-btn").style.display = "none";
-        
-        // Show next button after 3 seconds
-        setTimeout(() => {
-          document.getElementById("next-btn").style.display = "inline-block";
-        }, 2000);
-    }
-
-    function nextSong() {
-      loadSong();
-    }
-
-    function getGrade(percent) {
-      if (percent === 100) return "S+";
-      if (percent >= 90) return "A";
-      if (percent >= 75) return "B";
-      if (percent >= 60) return "C";
-      if (percent >= 40) return "D";
-      return "F";
-    }
-
-    function finishGame() {
-      const totalTime = (Date.now() - startTime) / 1000;
-      const percent = totalPlayed > 0 ? (correct / totalPlayed) * 100 : 0;
-      const points = totalTime > 0 ? ((correct / 30) * 10000) / (totalTime / 60) : 0;
-      
-      document.getElementById("game-container").style.display = "none";
-      document.getElementById("score").style.display = "none";
-      document.getElementById("song").src = "";
-      document.getElementById("final-score-box").style.display = "block";
-      
-      document.getElementById("grade-circle").innerText = getGrade(Math.round(percent));
-      document.getElementById("accuracy").innerText = `Accuracy: ${Math.round(percent)}%`;
-      document.getElementById("time").innerText = `Time: ${totalTime.toFixed(1)}s`;
-      document.getElementById("points").innerText = `Points: ${Math.round(points)}`;
-    }
+    let player, currentSong, targetTime, intervalTime;
+    let currentRound = 1;
+    let maxRounds = 5;
+    let totalScore = 0;
 
     function startGame() {
-      shuffled = [...songs].sort(() => 0.5 - Math.random());
-      document.getElementById("menu-screen").style.display = "none";
-      document.getElementById("score").style.display = "block";
-      document.getElementById("game-container").style.display = "block";
-      startTime = Date.now();
-      updateScore();
-      loadSong();
+        maxRounds = parseInt(document.getElementById('max-rounds').value);
+        intervalTime = parseInt(document.getElementById('interval').value);
+        document.getElementById('total-rounds-display').innerText = maxRounds;
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+        nextRound();
     }
 
-    document.getElementById("guess").addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        submitGuess();
-      }
-    });
-  </script>
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            height: '0', width: '0',
+            events: { 'onReady': () => console.log("Engine Ready") }
+        });
+    }
+
+    function nextRound() {
+        if (currentRound > maxRounds) {
+            alert(`Game Over! Final Score: ${totalScore}`);
+            location.reload();
+            return;
+        }
+        document.getElementById('round-num').innerText = currentRound;
+        currentSong = songs[Math.floor(Math.random() * songs.length)];
+        targetTime = Math.floor(Math.random() * (currentSong.duration - intervalTime));
+        
+        document.getElementById('timeline').max = currentSong.duration;
+        document.getElementById('max-time-display').innerText = formatTime(currentSong.duration);
+        document.getElementById('play-btn').disabled = false;
+        document.getElementById('guess-btn').disabled = true;
+        document.getElementById('song-input').value = "";
+        document.getElementById('feedback').innerText = "";
+        
+        player.cueVideoById(currentSong.id);
+    }
+
+    function playSnippet() {
+        player.seekTo(targetTime);
+        player.playVideo();
+        document.getElementById('play-btn').disabled = true;
+        setTimeout(() => {
+            player.pauseVideo();
+            document.getElementById('guess-btn').disabled = false;
+        }, intervalTime * 1000);
+    }
+
+    function handleSearch(val) {
+        const box = document.getElementById('suggestions');
+        box.innerHTML = '';
+        if (!val) return;
+        songs.filter(s => s.name.toLowerCase().includes(val.toLowerCase())).forEach(s => {
+            const div = document.createElement('div');
+            div.className = 'suggestion-item';
+            div.innerText = s.name;
+            div.onclick = () => {
+                document.getElementById('song-input').value = s.name;
+                box.innerHTML = '';
+            };
+            box.appendChild(div);
+        });
+    }
+
+    function submitGuess() {
+        const guessedName = document.getElementById('song-input').value;
+        const guessedTime = parseInt(document.getElementById('timeline').value);
+        let roundScore = 0;
+
+        // Name Scoring (2500)
+        if (guessedName.toLowerCase() === currentSong.name.toLowerCase()) {
+            roundScore += 2500;
+        }
+
+        // Time Scoring (2500)
+        const diff = Math.abs(guessedTime - targetTime);
+        // Lose points based on percentage of song length or flat seconds
+        // Here: -50 points per second wrong
+        const timePts = Math.max(0, 2500 - (diff * 50));
+        roundScore += timePts;
+
+        totalScore += roundScore;
+        document.getElementById('score-display').innerText = `Score: ${totalScore}`;
+        document.getElementById('feedback').innerHTML = 
+            `That was <b>${currentSong.name}</b> at <b>${formatTime(targetTime)}</b>.<br>Round Score: ${roundScore}`;
+        
+        currentRound++;
+        document.getElementById('guess-btn').disabled = true;
+        setTimeout(nextRound, 3000);
+    }
+
+    function formatTime(s) {
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    document.getElementById('timeline').oninput = function() {
+        document.getElementById('current-guess-time').innerText = formatTime(this.value);
+    }
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>
