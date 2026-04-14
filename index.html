@@ -173,13 +173,31 @@
     let currentRound = 1;
     let maxRounds = 5;
     let totalScore = 0;
+    let isWaitingForPlay = false;
 
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('player', {
             height: '200', width: '200',
-            playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1 },
-            events: { 'onReady': () => console.log("Player Ready") }
+            playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'origin': window.location.origin },
+            events: { 
+                'onReady': () => console.log("Player Ready"),
+                'onStateChange': onPlayerStateChange 
+            }
         });
+    }
+
+    // This waits for the video to ACTUALLY start playing before counting down
+    function onPlayerStateChange(event) {
+        if (event.data == YT.PlayerState.PLAYING && isWaitingForPlay) {
+            isWaitingForPlay = false;
+            document.getElementById('play-btn').innerText = "Listening...";
+            
+            setTimeout(() => {
+                player.pauseVideo();
+                document.getElementById('guess-btn').disabled = false;
+                document.getElementById('play-btn').innerText = "Snippet Played";
+            }, intervalTime * 1000);
+        }
     }
 
     function startGame() {
@@ -202,10 +220,9 @@
         currentSong = songs[Math.floor(Math.random() * songs.length)];
         targetTime = Math.floor(Math.random() * (currentSong.duration - intervalTime));
         
-        // Reset UI
         selectedSongData = null;
         document.getElementById('timeline').value = 0;
-        document.getElementById('timeline').max = 100; // Generic until song selected
+        document.getElementById('timeline').max = 100;
         document.getElementById('max-time-display').innerText = "0:00";
         document.getElementById('current-guess-time').innerText = "0:00";
         document.getElementById('play-btn').disabled = false;
@@ -218,15 +235,14 @@
     }
 
     function playSnippet() {
-        player.seekTo(targetTime);
+        isWaitingForPlay = true;
+        document.getElementById('play-btn').disabled = true;
+        document.getElementById('play-btn').innerText = "Loading Audio...";
+        
         player.unMute();
         player.setVolume(100);
+        player.seekTo(targetTime);
         player.playVideo();
-        document.getElementById('play-btn').disabled = true;
-        setTimeout(() => {
-            player.pauseVideo();
-            document.getElementById('guess-btn').disabled = false;
-        }, intervalTime * 1000);
     }
 
     function handleSearch(val) {
@@ -237,9 +253,7 @@
             const div = document.createElement('div');
             div.className = 'suggestion-item';
             div.innerText = s.name;
-            div.onclick = () => {
-                selectSong(s);
-            };
+            div.onclick = () => selectSong(s);
             box.appendChild(div);
         });
     }
@@ -249,7 +263,6 @@
         document.getElementById('song-input').value = songObj.name;
         document.getElementById('suggestions').innerHTML = '';
         
-        // UPDATE TIMELINE TO SELECTED SONG
         const timeline = document.getElementById('timeline');
         timeline.max = songObj.duration;
         timeline.value = 0;
@@ -262,14 +275,9 @@
         const guessedTime = parseInt(document.getElementById('timeline').value);
         let roundScore = 0;
 
-        // 1,000 pts for Name
         if (guessedName.toLowerCase() === currentSong.name.toLowerCase()) {
             roundScore += 1000;
-            
-            // 4,000 pts for Timing (Only if song name is correct)
             const diff = Math.abs(guessedTime - targetTime);
-            // Scoring curve: Full points for 0-2s off, then drops
-            // 4000 * (0.98 ^ diff) gives a nice "GeoGuessr" style curve
             const timePts = Math.round(4000 * Math.pow(0.97, diff));
             roundScore += Math.max(0, timePts);
         }
