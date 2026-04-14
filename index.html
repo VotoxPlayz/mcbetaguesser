@@ -45,7 +45,6 @@
             box-sizing: border-box;
         }
 
-        /* Suggestions List */
         .autocomplete { position: relative; }
         .suggestions {
             position: absolute;
@@ -56,10 +55,9 @@
             overflow-y: auto;
             z-index: 100;
         }
-        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #444; }
+        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #444; text-align: left;}
         .suggestion-item:hover { background: var(--mc-green); }
 
-        /* Progress Bar */
         #timeline { width: 100%; accent-color: var(--mc-green); cursor: pointer; }
         .time-labels { display: flex; justify-content: space-between; font-family: monospace; font-size: 0.8em; }
 
@@ -77,7 +75,8 @@
         }
         button:disabled { background: #555; cursor: not-allowed; }
         
-        #player { position: absolute; top: -9999px; left: -9999px; } /* Hide YT Player */
+        /* Modified player style to trick the browser into allowing audio */
+        #player { position: fixed; bottom: 0; right: 0; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
         .round-info { font-weight: bold; color: var(--mc-green); margin-bottom: 10px; }
     </style>
 </head>
@@ -108,6 +107,7 @@
 
     <div id="game-screen" class="game-screen">
         <div class="round-info">Round: <span id="round-num">1</span> / <span id="total-rounds-display">5</span></div>
+        
         <div id="player"></div>
 
         <button id="play-btn" onclick="playSnippet()">Play Snippet</button>
@@ -136,7 +136,7 @@
 </div>
 
 <script>
-    // Song Database
+    // Exact durations in seconds for Volume Beta
     const songs = [
         { name: "Ki", id: "0y53iF8BTSU", duration: 92 },
         { name: "Alpha", id: "xLfm2nnCOpc", duration: 603 },
@@ -157,9 +157,9 @@
         { name: "Beginning 2", id: "2vRBjHY7ReE", duration: 176 },
         { name: "Dreiton", id: "rbIGUF9QmXg", duration: 497 },
         { name: "The End", id: "-6mBUPdTmeI", duration: 904 },
-        { name: "Chirp", id: "cCibTj6drhM", duration: 126 },
-        { name: "Wait", id: "sBl9qcaQos4", duration: 238 },
-        { name: "Mellohi", id: "TrYlTm06o-8", duration: 118 },
+        { name: "Chirp", id: "cCibTj6drhM", duration: 186 },
+        { name: "Wait", id: "sBl9qcaQos4", duration: 234 },
+        { name: "Mellohi", id: "TrYlTm06o-8", duration: 98 },
         { name: "Stal", id: "0E5l2GHBxB8", duration: 152 },
         { name: "Strad", id: "d6tV0cr9zYI", duration: 188 },
         { name: "Eleven", id: "eh4rVC1Mv0E", duration: 71 },
@@ -175,20 +175,27 @@
     let maxRounds = 5;
     let totalScore = 0;
 
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            height: '200', width: '200', // Must have some size to load
+            playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1 },
+            events: { 
+                'onReady': (event) => { console.log("Player Loaded"); }
+            }
+        });
+    }
+
     function startGame() {
         maxRounds = parseInt(document.getElementById('max-rounds').value);
         intervalTime = parseInt(document.getElementById('interval').value);
+        
+        // Critical: Unmute player on first user gesture
+        if(player && player.unMute) player.unMute();
+        
         document.getElementById('total-rounds-display').innerText = maxRounds;
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         nextRound();
-    }
-
-    function onYouTubeIframeAPIReady() {
-        player = new YT.Player('player', {
-            height: '0', width: '0',
-            events: { 'onReady': () => console.log("Engine Ready") }
-        });
     }
 
     function nextRound() {
@@ -204,20 +211,27 @@
         document.getElementById('timeline').max = currentSong.duration;
         document.getElementById('max-time-display').innerText = formatTime(currentSong.duration);
         document.getElementById('play-btn').disabled = false;
+        document.getElementById('play-btn').innerText = "Play Snippet";
         document.getElementById('guess-btn').disabled = true;
         document.getElementById('song-input').value = "";
         document.getElementById('feedback').innerText = "";
         
-        player.cueVideoById(currentSong.id);
+        player.cueVideoById(currentSong.id, targetTime);
     }
 
     function playSnippet() {
         player.seekTo(targetTime);
+        player.unMute();
+        player.setVolume(100);
         player.playVideo();
+        
         document.getElementById('play-btn').disabled = true;
+        document.getElementById('play-btn').innerText = "Playing...";
+        
         setTimeout(() => {
             player.pauseVideo();
             document.getElementById('guess-btn').disabled = false;
+            document.getElementById('play-btn').innerText = "Snippet Played";
         }, intervalTime * 1000);
     }
 
@@ -242,26 +256,22 @@
         const guessedTime = parseInt(document.getElementById('timeline').value);
         let roundScore = 0;
 
-        // Name Scoring (2500)
         if (guessedName.toLowerCase() === currentSong.name.toLowerCase()) {
             roundScore += 2500;
         }
 
-        // Time Scoring (2500)
         const diff = Math.abs(guessedTime - targetTime);
-        // Lose points based on percentage of song length or flat seconds
-        // Here: -50 points per second wrong
         const timePts = Math.max(0, 2500 - (diff * 50));
         roundScore += timePts;
 
         totalScore += roundScore;
         document.getElementById('score-display').innerText = `Score: ${totalScore}`;
         document.getElementById('feedback').innerHTML = 
-            `That was <b>${currentSong.name}</b> at <b>${formatTime(targetTime)}</b>.<br>Round Score: ${roundScore}`;
+            `That was <span style="color:var(--mc-green)">${currentSong.name}</span> at <b>${formatTime(targetTime)}</b>.<br>Round Score: ${roundScore}`;
         
         currentRound++;
         document.getElementById('guess-btn').disabled = true;
-        setTimeout(nextRound, 3000);
+        setTimeout(nextRound, 4000);
     }
 
     function formatTime(s) {
