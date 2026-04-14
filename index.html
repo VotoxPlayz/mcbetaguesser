@@ -75,7 +75,6 @@
         }
         button:disabled { background: #555; cursor: not-allowed; }
         
-        /* Modified player style to trick the browser into allowing audio */
         #player { position: fixed; bottom: 0; right: 0; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
         .round-info { font-weight: bold; color: var(--mc-green); margin-bottom: 10px; }
     </style>
@@ -115,14 +114,14 @@
         <div class="control-group">
             <label>Which Song?</label>
             <div class="autocomplete">
-                <input type="text" id="song-input" autocomplete="off" oninput="handleSearch(this.value)">
+                <input type="text" id="song-input" autocomplete="off" oninput="handleSearch(this.value)" placeholder="Type to search...">
                 <div id="suggestions" class="suggestions"></div>
             </div>
         </div>
 
         <div class="control-group">
-            <label>Timestamp Guess: <span id="current-guess-time">0:00</span></label>
-            <input type="range" id="timeline" min="0" step="1" value="0">
+            <label>Where in the song? <span id="current-guess-time">0:00</span></label>
+            <input type="range" id="timeline" min="0" max="100" step="1" value="0">
             <div class="time-labels">
                 <span>0:00</span>
                 <span id="max-time-display">0:00</span>
@@ -131,12 +130,11 @@
 
         <button id="guess-btn" onclick="submitGuess()" disabled>Submit Guess</button>
         <div id="feedback" style="margin-top: 15px; font-weight: bold;"></div>
-        <h3 id="score-display">Score: 0</h3>
+        <h3 id="score-display">Total Score: 0</h3>
     </div>
 </div>
 
 <script>
-    // Exact durations in seconds for Volume Beta
     const songs = [
         { name: "Ki", id: "0y53iF8BTSU", duration: 92 },
         { name: "Alpha", id: "xLfm2nnCOpc", duration: 603 },
@@ -171,27 +169,23 @@
     ];
 
     let player, currentSong, targetTime, intervalTime;
+    let selectedSongData = null;
     let currentRound = 1;
     let maxRounds = 5;
     let totalScore = 0;
 
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('player', {
-            height: '200', width: '200', // Must have some size to load
+            height: '200', width: '200',
             playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1 },
-            events: { 
-                'onReady': (event) => { console.log("Player Loaded"); }
-            }
+            events: { 'onReady': () => console.log("Player Ready") }
         });
     }
 
     function startGame() {
         maxRounds = parseInt(document.getElementById('max-rounds').value);
         intervalTime = parseInt(document.getElementById('interval').value);
-        
-        // Critical: Unmute player on first user gesture
         if(player && player.unMute) player.unMute();
-        
         document.getElementById('total-rounds-display').innerText = maxRounds;
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
@@ -208,8 +202,12 @@
         currentSong = songs[Math.floor(Math.random() * songs.length)];
         targetTime = Math.floor(Math.random() * (currentSong.duration - intervalTime));
         
-        document.getElementById('timeline').max = currentSong.duration;
-        document.getElementById('max-time-display').innerText = formatTime(currentSong.duration);
+        // Reset UI
+        selectedSongData = null;
+        document.getElementById('timeline').value = 0;
+        document.getElementById('timeline').max = 100; // Generic until song selected
+        document.getElementById('max-time-display').innerText = "0:00";
+        document.getElementById('current-guess-time').innerText = "0:00";
         document.getElementById('play-btn').disabled = false;
         document.getElementById('play-btn').innerText = "Play Snippet";
         document.getElementById('guess-btn').disabled = true;
@@ -224,14 +222,10 @@
         player.unMute();
         player.setVolume(100);
         player.playVideo();
-        
         document.getElementById('play-btn').disabled = true;
-        document.getElementById('play-btn').innerText = "Playing...";
-        
         setTimeout(() => {
             player.pauseVideo();
             document.getElementById('guess-btn').disabled = false;
-            document.getElementById('play-btn').innerText = "Snippet Played";
         }, intervalTime * 1000);
     }
 
@@ -244,11 +238,23 @@
             div.className = 'suggestion-item';
             div.innerText = s.name;
             div.onclick = () => {
-                document.getElementById('song-input').value = s.name;
-                box.innerHTML = '';
+                selectSong(s);
             };
             box.appendChild(div);
         });
+    }
+
+    function selectSong(songObj) {
+        selectedSongData = songObj;
+        document.getElementById('song-input').value = songObj.name;
+        document.getElementById('suggestions').innerHTML = '';
+        
+        // UPDATE TIMELINE TO SELECTED SONG
+        const timeline = document.getElementById('timeline');
+        timeline.max = songObj.duration;
+        timeline.value = 0;
+        document.getElementById('max-time-display').innerText = formatTime(songObj.duration);
+        document.getElementById('current-guess-time').innerText = "0:00";
     }
 
     function submitGuess() {
@@ -256,16 +262,20 @@
         const guessedTime = parseInt(document.getElementById('timeline').value);
         let roundScore = 0;
 
+        // 1,000 pts for Name
         if (guessedName.toLowerCase() === currentSong.name.toLowerCase()) {
-            roundScore += 2500;
+            roundScore += 1000;
+            
+            // 4,000 pts for Timing (Only if song name is correct)
+            const diff = Math.abs(guessedTime - targetTime);
+            // Scoring curve: Full points for 0-2s off, then drops
+            // 4000 * (0.98 ^ diff) gives a nice "GeoGuessr" style curve
+            const timePts = Math.round(4000 * Math.pow(0.97, diff));
+            roundScore += Math.max(0, timePts);
         }
 
-        const diff = Math.abs(guessedTime - targetTime);
-        const timePts = Math.max(0, 2500 - (diff * 50));
-        roundScore += timePts;
-
         totalScore += roundScore;
-        document.getElementById('score-display').innerText = `Score: ${totalScore}`;
+        document.getElementById('score-display').innerText = `Total Score: ${totalScore}`;
         document.getElementById('feedback').innerHTML = 
             `That was <span style="color:var(--mc-green)">${currentSong.name}</span> at <b>${formatTime(targetTime)}</b>.<br>Round Score: ${roundScore}`;
         
