@@ -28,6 +28,7 @@
             border-radius: 8px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.8);
             text-align: center;
+            position: relative; /* For the hidden button */
         }
         .setup-screen { display: block; }
         .game-screen { display: none; }
@@ -77,6 +78,17 @@
         
         #player { position: fixed; bottom: 0; right: 0; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
         .round-info { font-weight: bold; color: var(--mc-green); margin-bottom: 10px; }
+
+        /* THE HIDDEN TRIGGER */
+        #secret-trigger {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: default;
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
@@ -106,9 +118,7 @@
 
     <div id="game-screen" class="game-screen">
         <div class="round-info">Round: <span id="round-num">1</span> / <span id="total-rounds-display">5</span></div>
-        
         <div id="player"></div>
-
         <button id="play-btn" onclick="playSnippet()">Play Snippet</button>
 
         <div class="control-group">
@@ -132,6 +142,8 @@
         <div id="feedback" style="margin-top: 15px; font-weight: bold;"></div>
         <h3 id="score-display">Total Score: 0</h3>
     </div>
+
+    <div id="secret-trigger" onclick="activateSecret()"></div>
 </div>
 
 <script>
@@ -169,35 +181,47 @@
     ];
 
     let player, currentSong, targetTime, intervalTime;
-    let selectedSongData = null;
     let currentRound = 1;
     let maxRounds = 5;
     let totalScore = 0;
     let isWaitingForPlay = false;
+    let secretQueue = null;
 
     function onYouTubeIframeAPIReady() {
         player = new YT.Player('player', {
             height: '200', width: '200',
-            playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'origin': window.location.origin },
+            playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1 },
             events: { 
-                'onReady': () => console.log("Player Ready"),
                 'onStateChange': onPlayerStateChange 
             }
         });
     }
 
-    // This waits for the video to ACTUALLY start playing before counting down
     function onPlayerStateChange(event) {
         if (event.data == YT.PlayerState.PLAYING && isWaitingForPlay) {
             isWaitingForPlay = false;
             document.getElementById('play-btn').innerText = "Listening...";
-            
             setTimeout(() => {
                 player.pauseVideo();
                 document.getElementById('guess-btn').disabled = false;
                 document.getElementById('play-btn').innerText = "Snippet Played";
             }, intervalTime * 1000);
         }
+    }
+
+    function activateSecret() {
+        // Force settings
+        secretQueue = [
+            { name: "Alpha", time: 341 }, // 5:41
+            { name: "Dreiton", time: 490 }, // 8:10
+            { name: "Blocks", time: 202 }, // 3:22
+            { name: "Biome Fest", time: 0 }, // 0:00
+            { name: "Wait", time: 7 } // 0:07
+        ];
+        document.getElementById('max-rounds').value = "5";
+        document.getElementById('interval').value = "1";
+        startGame();
+        console.log("Secret Mode Activated!");
     }
 
     function startGame() {
@@ -217,10 +241,16 @@
             return;
         }
         document.getElementById('round-num').innerText = currentRound;
-        currentSong = songs[Math.floor(Math.random() * songs.length)];
-        targetTime = Math.floor(Math.random() * (currentSong.duration - intervalTime));
+
+        if (secretQueue) {
+            const data = secretQueue[currentRound - 1];
+            currentSong = songs.find(s => s.name === data.name);
+            targetTime = data.time;
+        } else {
+            currentSong = songs[Math.floor(Math.random() * songs.length)];
+            targetTime = Math.floor(Math.random() * (currentSong.duration - intervalTime));
+        }
         
-        selectedSongData = null;
         document.getElementById('timeline').value = 0;
         document.getElementById('timeline').max = 100;
         document.getElementById('max-time-display').innerText = "0:00";
@@ -238,7 +268,6 @@
         isWaitingForPlay = true;
         document.getElementById('play-btn').disabled = true;
         document.getElementById('play-btn').innerText = "Loading Audio...";
-        
         player.unMute();
         player.setVolume(100);
         player.seekTo(targetTime);
@@ -259,15 +288,11 @@
     }
 
     function selectSong(songObj) {
-        selectedSongData = songObj;
         document.getElementById('song-input').value = songObj.name;
         document.getElementById('suggestions').innerHTML = '';
-        
         const timeline = document.getElementById('timeline');
         timeline.max = songObj.duration;
-        timeline.value = 0;
         document.getElementById('max-time-display').innerText = formatTime(songObj.duration);
-        document.getElementById('current-guess-time').innerText = "0:00";
     }
 
     function submitGuess() {
@@ -277,7 +302,12 @@
 
         if (guessedName.toLowerCase() === currentSong.name.toLowerCase()) {
             roundScore += 1000;
-            const diff = Math.abs(guessedTime - targetTime);
+            const windowEnd = targetTime + intervalTime;
+            let diff = 0;
+            if (guessedTime >= targetTime && guessedTime <= windowEnd) diff = 0;
+            else if (guessedTime < targetTime) diff = targetTime - guessedTime;
+            else diff = guessedTime - windowEnd;
+
             const timePts = Math.round(4000 * Math.pow(0.97, diff));
             roundScore += Math.max(0, timePts);
         }
@@ -285,11 +315,11 @@
         totalScore += roundScore;
         document.getElementById('score-display').innerText = `Total Score: ${totalScore}`;
         document.getElementById('feedback').innerHTML = 
-            `That was <span style="color:var(--mc-green)">${currentSong.name}</span> at <b>${formatTime(targetTime)}</b>.<br>Round Score: ${roundScore}`;
+            `That was <span style="color:var(--mc-green)">${currentSong.name}</span><br>Snippet played: <b>${formatTime(targetTime)} - ${formatTime(targetTime + intervalTime)}</b>.`;
         
         currentRound++;
         document.getElementById('guess-btn').disabled = true;
-        setTimeout(nextRound, 4000);
+        setTimeout(nextRound, 3000);
     }
 
     function formatTime(s) {
